@@ -10,6 +10,9 @@ fontsize: 11pt
 ---
 
 ```{r setup, include = FALSE}
+# ----------------------------------------------
+# Global options & packages
+# ----------------------------------------------
 knitr::opts_chunk$set(echo = TRUE, warning = FALSE, message = FALSE)
 
 library(tidyverse)
@@ -20,8 +23,10 @@ library(afex)
 library(patchwork)
 library(here)
 
+# Clamp helper----------------------------------
 clamp <- function(x, lo, hi) pmin(hi, pmax(lo, x))
 
+# Classic SM-2 scheduler------------------------
 sm2 <- function(ease, q, interval_prev){
   ease_new <- ease + 0.1 - (5 - q) * (0.08 + (5 - q) * 0.02)
   ease_new <- clamp(ease_new, 1.3, 2.5)
@@ -31,6 +36,7 @@ sm2 <- function(ease, q, interval_prev){
   list(ease = ease_new, interval = interval)
 }
 
+# Cognitive-load–adaptive scheduler -----------
 cload <- function(ease, q, load, interval_prev){
   ease_new <- ease + 0.1 - (5 - q) * (0.08 + 0.02 * load)
   ease_new <- clamp(ease_new, 1.3, 2.5)
@@ -39,11 +45,15 @@ cload <- function(ease, q, load, interval_prev){
   list(ease = ease_new, interval = interval)
 }
 
+# Simulation engine 
 simulate_study <- function(cards_df){
   logs <- list()
+  
+  # We simulate study days 0,1,3,5,7,8 (as in your protocol)
   for(day in c(0,1,3,5,7,8)){
     cards_df$is_due <- cards_df$due_day <= day
     
+    # ── Run one review pass ───────────────────
     cards_df <- cards_df %>%
       rowwise() %>%
       mutate(
@@ -69,11 +79,13 @@ int_new  = if (arm == 0)
         due_new   = day + int_new
       ) %>% ungroup()
     
+    # ── Log today’s reviews ───────────────────
     logs[[as.character(day)]] <- cards_df %>%
     filter(is_due) %>%
-    mutate(day = day) %>%        # <-- add a *numeric* column
+    mutate(day = day) %>%       
     select(id, arm, day, card_id, correct, load)
     
+    # ── Update spaced-repetition state ────────
     cards_df <- cards_df %>%
       mutate(
         ease     = ifelse(is_due, ease_new, ease),
@@ -83,19 +95,20 @@ int_new  = if (arm == 0)
       select(-c(is_due, p_correct, correct, q, res,
                 ease_new, int_new, due_new, load))
   }
-  bind_rows(logs)
+  bind_rows(logs)         # return a long data-frame
 }
 
+#Generate a synthetic cohort
 set.seed(42)
 n_participants <- 40
 cards_per_user <- 40
 
-# participant table
+# 3-a  participant-level table (arm = 0 SM-2, 1 CLoad)
 def_pt <- simstudy::defData(varname = "arm", formula = 0.5, dist = "binary")
 pt <- simstudy::genData(n_participants, def_pt) %>%
         mutate(id = as.integer(id))
 
-# expand to one row per card
+# 3-b  expand to one row per (participant × card)
 cards <- pt %>%
   tidyr::expand(id, card_id = 1:cards_per_user) %>%
   mutate(
@@ -105,23 +118,30 @@ cards <- pt %>%
     due_day  = 0
   )
 
+#Run the simulation
 logs <- simulate_study(cards)
+
+# Save in case you want to inspect later
 write_csv(logs, here::here("synthetic_logs.csv"))
 
+# Primary outcome - 24 h delayed recall (Day 8)
 day8 <- logs %>%
   filter(day == 8) %>%
   group_by(id, arm) %>%
   summarise(recall_pct = mean(correct)*100, .groups = "drop")
 
+# t-test & effect size
 t.test(recall_pct ~ arm, data = day8, var.equal = TRUE)
 effectsize::cohens_d(recall_pct ~ arm, data = day8)
 
+# Learning curves
 ggplot(logs, aes(day, correct, colour = factor(arm))) +
   stat_summary(fun = mean, geom = "line", size = 1.2) +
   scale_y_continuous(labels = scales::percent, limits = c(0,1)) +
   labs(colour = "Arm", y = "Proportion correct") +
   theme_minimal()
 
+# Mixed-effects ANOVA (arm x day)
 afex::aov_ez(
   id   = "id",
   dv   = "correct",
@@ -130,6 +150,8 @@ afex::aov_ez(
   data = logs,
   fun_aggregate = mean
 )
+
+# Secondary outcome - Everyday-memory self-efficacy
 set.seed(99)
 selfeff <- pt %>%
   mutate(
