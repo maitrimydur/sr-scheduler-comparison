@@ -1,0 +1,142 @@
+---
+title: "Scheduler-Simulation Report"
+author: "Maithreyi Mydur"
+date: "`r Sys.Date()`"
+output:
+  html_document:
+    toc: true
+    toc_depth: 2
+fontsize: 11pt
+---
+
+```{r setup, include = FALSE}
+knitr::opts_chunk$set(echo = TRUE, warning = FALSE, message = FALSE)
+
+library(tidyverse)
+library(janitor)
+library(simstudy)
+library(effectsize)
+library(afex)
+library(patchwork)
+library(here)
+
+clamp <- function(x, lo, hi) pmin(hi, pmax(lo, x))
+
+sm2 <- function(ease, q, interval_prev){
+  ease_new <- ease + 0.1 - (5 - q) * (0.08 + (5 - q) * 0.02)
+  ease_new <- clamp(ease_new, 1.3, 2.5)
+  interval <- ifelse(q < 3, 1,
+               ifelse(interval_prev == 0, 1,
+               round(interval_prev * ease_new)))
+  list(ease = ease_new, interval = interval)
+}
+
+cload <- function(ease, q, load, interval_prev){
+  ease_new <- ease + 0.1 - (5 - q) * (0.08 + 0.02 * load)
+  ease_new <- clamp(ease_new, 1.3, 2.5)
+  interval <- ifelse(q < 3, 1,
+               round(interval_prev * ease_new * (1 - load + 0.5)))
+  list(ease = ease_new, interval = interval)
+}
+
+simulate_study <- function(cards_df){
+  logs <- list()
+  for(day in c(0,1,3,5,7,8)){
+    cards_df$is_due <- cards_df$due_day <= day
+    
+    cards_df <- cards_df %>%
+      rowwise() %>%
+      mutate(
+        load      = clamp(runif(1,.2,.8) + day/10 + rnorm(1,0,.05), 0, 1),
+        p_correct = plogis((ease-1.8)*1.5 - load*2),
+        correct   = rbinom(1, 1, p_correct),
+        q         = ifelse(correct==1, sample(3:5,1), sample(0:2,1)),
+        res = list(                       # <- wrap in *another* list
+            if (arm == 0)
+              sm2(ease, q, interval)
+            else
+              cload(ease, q, load, interval)
+          ),
+        ease_new = if (arm == 0)
+             sm2(ease, q, interval)[["ease"]]
+           else
+             cload(ease, q, load, interval)[["ease"]],
+
+int_new  = if (arm == 0)
+             sm2(ease, q, interval)[["interval"]]
+           else
+             cload(ease, q, load, interval)[["interval"]],
+        due_new   = day + int_new
+      ) %>% ungroup()
+    
+    logs[[as.character(day)]] <- cards_df %>%
+    filter(is_due) %>%
+    mutate(day = day) %>%        # <-- add a *numeric* column
+    select(id, arm, day, card_id, correct, load)
+    
+    cards_df <- cards_df %>%
+      mutate(
+        ease     = ifelse(is_due, ease_new, ease),
+        interval = ifelse(is_due, int_new , interval),
+        due_day  = ifelse(is_due, due_new , due_day)
+      ) %>%
+      select(-c(is_due, p_correct, correct, q, res,
+                ease_new, int_new, due_new, load))
+  }
+  bind_rows(logs)
+}
+
+set.seed(42)
+n_participants <- 40
+cards_per_user <- 40
+
+# participant table
+def_pt <- simstudy::defData(varname = "arm", formula = 0.5, dist = "binary")
+pt <- simstudy::genData(n_participants, def_pt) %>%
+        mutate(id = as.integer(id))
+
+# expand to one row per card
+cards <- pt %>%
+  tidyr::expand(id, card_id = 1:cards_per_user) %>%
+  mutate(
+    arm      = pt$arm[match(id, pt$id)],
+    ease     = 2.5,
+    interval = 0,
+    due_day  = 0
+  )
+
+logs <- simulate_study(cards)
+write_csv(logs, here::here("synthetic_logs.csv"))
+
+day8 <- logs %>%
+  filter(day == 8) %>%
+  group_by(id, arm) %>%
+  summarise(recall_pct = mean(correct)*100, .groups = "drop")
+
+t.test(recall_pct ~ arm, data = day8, var.equal = TRUE)
+effectsize::cohens_d(recall_pct ~ arm, data = day8)
+
+ggplot(logs, aes(day, correct, colour = factor(arm))) +
+  stat_summary(fun = mean, geom = "line", size = 1.2) +
+  scale_y_continuous(labels = scales::percent, limits = c(0,1)) +
+  labs(colour = "Arm", y = "Proportion correct") +
+  theme_minimal()
+
+afex::aov_ez(
+  id   = "id",
+  dv   = "correct",
+  within = "day",
+  between = "arm",
+  data = logs,
+  fun_aggregate = mean
+)
+set.seed(99)
+selfeff <- pt %>%
+  mutate(
+    pre  = rnorm(n(), 45, 8),
+    gain = ifelse(arm == 1, rnorm(n(), 8, 4), rnorm(n(), 2, 4)),
+    post = pmin(100, pre + gain)
+  )
+
+t.test(post - pre ~ arm, data = selfeff)
+```
