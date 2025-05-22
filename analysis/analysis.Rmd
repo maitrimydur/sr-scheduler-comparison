@@ -161,4 +161,31 @@ selfeff <- pt %>%
   )
 
 t.test(post - pre ~ arm, data = selfeff)
+
+
+```
+
+## Export data objects
+
+```{r export-data, message=FALSE, warning=FALSE}
+library(here)
+library(readr)
+
+# ensure a “data/” folder lives under your project root
+data_dir <- here("data")
+dir.create(data_dir, recursive = TRUE, showWarnings = FALSE)
+
+# write out CSVs
+write_csv(cards,   file.path(data_dir, "cards.csv"))
+write_csv(day8,    file.path(data_dir, "day8.csv"))
+write_csv(pt,      file.path(data_dir, "pt.csv"))
+write_csv(logs,    file.path(data_dir, "logs.csv"))
+write_csv(selfeff, file.path(data_dir, "selfeff.csv"))
+
+# save R objects
+saveRDS(def_pt,    file.path(data_dir, "def_pt.rds"))
+save(cards, day8, pt, logs, selfeff, def_pt,
+     file = file.path(data_dir, "all_analysis_data.RData"))
+
+list.files(data_dir)
 ```
