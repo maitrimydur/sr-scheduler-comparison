@@ -20,19 +20,23 @@ We run synthetic cohort simulations (N users × M cards) and analyze:
 ---
 
 ## 📂 Folder Structure
-├── README.md
-├── remindXR-study.Rproj
-├── data/
-│ ├── cards.csv
-│ ├── day8.csv
-│ ├── pt.csv
-│ ├── logs.csv
-│ ├── selfeff.csv
-│ ├── def_pt.rds
-│ └── all_analysis_data.RData
-├── R/
-│ ├── schedulers.R # SM-2 & CLoad functions
-│ └── simulate_cohort.R # simulate_study() wrapper
-├── analysis/
-│ ├── analysis.Rmd # statistical tests & plots
-│ └── analysis.html # knitted output
+
+    ├── README.md
+    ├── remindXR-study.Rproj
+    ├── data/
+    │   ├── cards.csv
+    │   ├── day8.csv
+    │   ├── pt.csv
+    │   ├── logs.csv
+    │   ├── selfeff.csv
+    │   ├── def_pt.rds
+    │   └── all_analysis_data.RData
+    ├── R/
+    │   ├── schedulers.R          # SM-2 & CLoad functions
+    │   └── simulate_cohort.R     # simulate_study() wrapper
+    ├── analysis/
+    │   ├── analysis.Rmd          # statistical tests & plots
+    │   └── analysis.html         # knitted output
+    └── app/                      # (future) React Native / web front-end
+
+
