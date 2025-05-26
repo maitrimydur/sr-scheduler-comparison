@@ -37,6 +37,19 @@ We run synthetic cohort simulations (N users × M cards) and analyze:
     ├── analysis/
     │   ├── analysis.Rmd          # statistical tests & plots
     │   └── analysis.html         # knitted output
-    └── app/                      # (future) React Native / web front-end
 
 
+---
+
+## 🚀 Getting Started
+
+### Prerequisites
+
+- R (≥ 4.0)  
+- RStudio (recommended)  
+- Required packages:
+  ```r
+  install.packages(c(
+    "dplyr", "magrittr", "simstudy",
+    "knitr", "rmarkdown", "ggplot2", "lme4", "effsize"
+  ))
