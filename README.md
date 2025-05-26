@@ -36,4 +36,3 @@ We run synthetic cohort simulations (N users × M cards) and analyze:
 ├── analysis/
 │ ├── analysis.Rmd # statistical tests & plots
 │ └── analysis.html # knitted output
-└── app/ # (future) React Native / web front-end
